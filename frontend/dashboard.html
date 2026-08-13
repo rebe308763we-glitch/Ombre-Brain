@@ -229,21 +229,14 @@
   .bucket-sort-note { color:var(--text-light);font-size:11px; }
   .bucket-bulkbar { display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0;padding:10px 14px;border:none;border-radius:14px;background:var(--surface-solid);box-shadow:4px 4px 11px var(--shadow-dark-subtle), -3px -3px 8px var(--shadow-light); }
   .bucket-bulkbar-actions { display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto; }
-  .bucket-select { width:17px;height:17px;accent-color:var(--accent);flex:0 0 auto; }
+  .bucket-select { width:17px;height:17px;accent-color:var(--accent);flex:0 0 auto; display:none; }
   .developer-only { display:none; }
   body.developer-mode .developer-only { display:inline-flex; }
-  /* 记忆桶翻页器 / bucket pager */
-  .bucket-pager { display: flex; align-items: center; justify-content: center; flex-wrap:wrap; gap: 8px; margin: 18px 0 4px; }
-  .pager-btn {
-    padding: 6px 14px; font-size: 12.5px; border-radius: 10px; cursor: pointer; font-family: inherit;
-    border: 1px solid var(--border-strong); background: var(--surface-solid); color: var(--text);
-    box-shadow: 2px 2px 6px var(--shadow-dark-subtle), -2px -2px 5px var(--shadow-light); transition: color .15s;
-  }
-  .pager-btn:hover:not(:disabled) { color: var(--accent); }
-  .pager-btn:disabled { opacity: .4; cursor: default; box-shadow: inset 2px 2px 5px var(--shadow-dark-subtle); }
-  .pager-info { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--text-dim); }
-  .pager-jump { display:inline-flex;align-items:center;gap:5px;color:var(--text-dim);font-size:12px; }
-  .pager-input { width:58px;height:30px;padding:0 6px;text-align:center;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);font-family:'Share Tech Mono',monospace; }
+  /* 编辑模式：平时隐藏多选框与批量操作栏，点「编辑模式」才出现 */
+  .bucket-bulkbar { display:none; }
+  #list-view.edit-mode .bucket-bulkbar { display:flex; }
+  #list-view.edit-mode .bucket-select { display:inline-block; }
+  .bucket-edit-toggle.active { color: var(--accent); border-color: var(--accent); box-shadow: inset 2px 2px 5px var(--shadow-dark-subtle), inset -2px -2px 4px var(--shadow-light); }
   .bucket-row {
     display: flex;
     flex-direction: column;
@@ -2050,9 +2043,10 @@
       </select>
     </label>
     <span class="bucket-sort-note" id="bucket-sort-note">按综合衰减分排列</span>
+    <button id="bucket-edit-toggle" class="bucket-edit-toggle" onclick="toggleBucketEditMode()" style="margin-left:auto;height:32px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-solid);color:var(--text);cursor:pointer;"><i data-lucide="list-checks" style="width:14px;height:14px;"></i> 编辑模式</button>
   </div>
   <div class="bucket-bulkbar">
-    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);height:32px;"><input id="bucket-select-all" type="checkbox" onchange="selectAllCurrentPage(this.checked)" style="accent-color:var(--accent);cursor:pointer;"> 全选当前页</label>
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);height:32px;"><input id="bucket-select-all" type="checkbox" onchange="selectAllCurrentPage(this.checked)" style="accent-color:var(--accent);cursor:pointer;"> 全选</label>
     <span id="bucket-selected-count" style="color:var(--text-dim);font-size:12px;">已选 0</span>
     <div class="bucket-bulkbar-actions">
       <button onclick="runBucketBatch('forget')" style="height:32px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="eye-off"></i> 主动遗忘</button>
@@ -4539,6 +4533,7 @@ try {
 } catch (_) { /* localStorage unavailable: keep the compatible score default */ }
 var bucketLoadGeneration = 0;
 var selectedBucketIds = new Set();
+var bucketEditMode = false;
 var developerMode = localStorage.getItem('ombreDeveloperMode') === 'true';
 
 function syncBucketSortControl() {
@@ -4557,7 +4552,6 @@ async function setBucketSort(value) {
   var normalized = BUCKET_SORT_MODES.includes(value) ? value : 'score';
   bucketSort = normalized;
   try { localStorage.setItem('ombreBucketSort', bucketSort); } catch (_) {}
-  bucketPage = 1;
   syncBucketSortControl();
   await loadBuckets();
 }
@@ -4578,12 +4572,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function _currentBucketPageItems() {
-  var visible = (_curBuckets || []).filter(function(b) { return !b.dont_surface; });
-  if (!visible.length) return [];
-  var totalPages = Math.ceil(visible.length / BUCKETS_PER_PAGE);
-  var page = _normalizeBucketPage(bucketPage, totalPages, 1);
-  var startIdx = (page - 1) * BUCKETS_PER_PAGE;
-  return visible.slice(startIdx, startIdx + BUCKETS_PER_PAGE);
+  return (_curBuckets || []).filter(function(b) { return !b.dont_surface; });
 }
 
 function _currentBucketPageIds() {
@@ -4614,6 +4603,19 @@ function selectAllCurrentPage(checked) {
   _currentBucketPageIds().forEach(function(id) {
     if (checked) selectedBucketIds.add(id); else selectedBucketIds.delete(id);
   });
+  syncBucketSelectionUi();
+}
+
+function toggleBucketEditMode() {
+  bucketEditMode = !bucketEditMode;
+  var view = document.getElementById('list-view');
+  if (view) view.classList.toggle('edit-mode', bucketEditMode);
+  var btn = document.getElementById('bucket-edit-toggle');
+  if (btn) {
+    btn.classList.toggle('active', bucketEditMode);
+    btn.setAttribute('aria-pressed', bucketEditMode ? 'true' : 'false');
+  }
+  if (!bucketEditMode) selectedBucketIds.clear();
   syncBucketSelectionUi();
 }
 
@@ -4759,9 +4761,8 @@ async function loadBuckets() {
     selectedBucketIds.forEach(function(id) { if (!liveIds.has(id)) selectedBucketIds.delete(id); });
     updateStats();
     buildFilters();
-    // 数据刷新不等于用户切换视图：继续应用当前筛选，并保留所在页。
-    // 若刷新后页数减少，_paintBuckets 会自动把 bucketPage 收敛到末页。
-    renderBuckets(filterBuckets(allBuckets), true);
+    // 数据刷新不等于用户切换视图：继续应用当前筛选。
+    renderBuckets(filterBuckets(allBuckets));
     if (data.length === 0 && window.ObPet) window.ObPet.react('empty');
   } catch (e) {
     if (generation !== bucketLoadGeneration || requestedSort !== bucketSort) return;
@@ -4846,62 +4847,12 @@ function filterBuckets(buckets) {
   return buckets;
 }
 
-// 翻页状态：用户主动切换筛选/搜索时回到第 1 页；后台刷新可显式保留当前页。
-var bucketPage = 1;
+// 记忆列表：全量渲染，不分页（一页到底）。
 var _curBuckets = [];
-var BUCKETS_PER_PAGE = 10;
 
-function renderBuckets(buckets, preservePage) {
+function renderBuckets(buckets) {
   _curBuckets = buckets || [];
-  if (!preservePage) bucketPage = 1;
   _paintBuckets();
-}
-
-function _normalizeBucketPage(value, totalPages, fallbackPage) {
-  var maxPage = Number(totalPages);
-  maxPage = Number.isFinite(maxPage) && maxPage >= 1 ? Math.trunc(maxPage) : 1;
-  var fallback = Number(fallbackPage);
-  fallback = Number.isFinite(fallback) ? Math.trunc(fallback) : 1;
-  fallback = Math.min(maxPage, Math.max(1, fallback));
-  if (value === null || value === undefined || String(value).trim() === '') return fallback;
-  var parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(maxPage, Math.max(1, Math.trunc(parsed)));
-}
-
-function _visibleBucketTotalPages() {
-  var visibleCount = (_curBuckets || []).filter(function(b) { return !b.dont_surface; }).length;
-  return Math.max(1, Math.ceil(visibleCount / BUCKETS_PER_PAGE));
-}
-
-function gotoBucketPage(n) {
-  bucketPage = _normalizeBucketPage(n, _visibleBucketTotalPages(), bucketPage);
-  _paintBuckets();
-  var list = document.getElementById('bucket-list');
-  if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function jumpToBucketPage() {
-  var input = document.getElementById('bucket-page-input');
-  if (!input) return;
-  gotoBucketPage(input.value);
-}
-
-function _bucketPagerHtml(total, totalPages) {
-  if (totalPages <= 1) return '';
-  return '<nav class="bucket-pager" aria-label="记忆桶分页">' +
-    '<button type="button" class="pager-btn" aria-label="跳到第一页"' + (bucketPage <= 1 ? ' disabled' : '') + ' onclick="gotoBucketPage(1)">« 首页</button>' +
-    '<button type="button" class="pager-btn" aria-label="上一页"' + (bucketPage <= 1 ? ' disabled' : '') + ' onclick="gotoBucketPage(' + (bucketPage - 1) + ')">‹ 上一页</button>' +
-    '<span class="pager-info" role="status" aria-live="polite">' + bucketPage + ' / ' + totalPages + ' 页 · 共 ' + total + '</span>' +
-    '<button type="button" class="pager-btn" aria-label="下一页"' + (bucketPage >= totalPages ? ' disabled' : '') + ' onclick="gotoBucketPage(' + (bucketPage + 1) + ')">下一页 ›</button>' +
-    '<button type="button" class="pager-btn" aria-label="跳到最后一页"' + (bucketPage >= totalPages ? ' disabled' : '') + ' onclick="gotoBucketPage(' + totalPages + ')">末页 »</button>' +
-    '<form class="pager-jump" onsubmit="event.preventDefault();jumpToBucketPage()">' +
-      '<label for="bucket-page-input">第</label>' +
-      '<input class="pager-input" id="bucket-page-input" type="number" inputmode="numeric" min="1" max="' + totalPages + '" step="1" value="' + bucketPage + '" aria-label="输入页码">' +
-      '<span>页</span>' +
-      '<button type="submit" class="pager-btn" aria-label="跳转到输入页码">跳转</button>' +
-    '</form>' +
-  '</nav>';
 }
 
 function _paintBuckets() {
@@ -4912,16 +4863,11 @@ function _paintBuckets() {
   var visible = _curBuckets.filter(function(b) { return !b.dont_surface; });
   renderForgottenGroup(forgotten);
   if (!visible.length) {
-    bucketPage = 1;
     list.innerHTML = '<div class="loading">没有记忆桶 / No buckets</div>';
     syncBucketSelectionUi();
     return;
   }
-  // 分页：每页 BUCKETS_PER_PAGE 个，底部翻页
-  var totalPages = Math.ceil(visible.length / BUCKETS_PER_PAGE);
-  bucketPage = _normalizeBucketPage(bucketPage, totalPages, 1);
-  var pageItems = _currentBucketPageItems();
-  list.innerHTML = pageItems.map(function(b) {
+  list.innerHTML = visible.map(function(b) {
     // iter 1.8: dont_surface = 主动遗忘（仍在磁盘） / first_of_kind = 首次出现的标签组合
     // 图标：feel→计算表情、letter→信封、pinned→可发光的钉、其余沿用原逻辑
     var iconCls = 'icon', iconHtml;
@@ -4946,7 +4892,7 @@ function _paintBuckets() {
       : activityTime;
     var timeLabel = chronologicalSort
       ? (shownTime ? '创建 ' + formatCompactBucketTime(shownTime) : '创建时间未知')
-      : (shownTime ? '活跃 ' + formatTimeAgo(shownTime) : '活跃时间未知');
+      : (shownTime ? '活跃 ' + formatCompactBucketTime(shownTime) : '活跃时间未知');
     var timeTitle = chronologicalSort
       ? (shownTime ? '首次记录时间：' + formatExactBucketTime(shownTime) : '首次记录时间未知')
       : (shownTime ? '最近活跃时间：' + formatExactBucketTime(shownTime) : '最近活跃时间未知');
@@ -4973,7 +4919,7 @@ function _paintBuckets() {
       '</div>' +
       '<div class="bucket-row-bottom"><span class="preview">' + esc(b.content_preview) + '</span></div>' +
     '</div>';
-  }).join('') + _bucketPagerHtml(visible.length, totalPages);
+  }).join('');
   if (window.lucide) lucide.createIcons();
   syncBucketSelectionUi();
 }
@@ -6038,7 +5984,6 @@ window.ObPet = (function () {
   function dropRemark(x, y) {
     var hour=new Date().getHours();
     if (y < 55) return '太高了……我恐高。';
-    if (pointNearElement(x,y,'.bucket-pager',80)) return '这位置以前是我的。';
     if (pointNearElement(x,y,'.search-bar',90)) return '你找什么？我帮你啄。';
     if (document.getElementById('settings-view') && document.getElementById('settings-view').style.display !== 'none') return '不要乱动我的饲料配方。';
     if (hour < 5 || hour >= 23) return '你怎么还没睡？';
