@@ -533,4 +533,5 @@ class DesireEngine:
             },
             "recent_events": [{"type": e["type"], "detail": e.get("detail", "")}
                               for e in self.events_log[-5:]],
+            "sent_history": self.sent_history[-10:],
         }
