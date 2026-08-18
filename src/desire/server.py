@@ -88,9 +88,9 @@ def handle_tool_call(name: str, arguments: dict) -> str:
         if away:
             parts.append(f"\n暂离：{away}（还没回）")
 
-        sent = state.get("sent_history") or []
+        sent = state.get("sent_today") or []
         if sent:
-            parts.append("\n最近发过：\n" + "\n".join(f"  · {s}" for s in sent[-3:]))
+            parts.append("\n今天发过：\n" + "\n".join(f"  · {s}" for s in sent))
 
         if state.get("baselines"):
             bl = ", ".join(f"{DRIVE_ZH.get(k,k)}地板{v}" for k, v in state["baselines"].items())
