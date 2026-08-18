@@ -1250,6 +1250,28 @@ if __name__ == "__main__":
             lifecycle=_runtime_lifecycle,
             static_token_validator=_mcp_static_token_validator,
         )
+
+        # ── desire 集成（可选，DESIRE_ENABLED=true 时启用）──
+        # desire 欲望引擎 + 主动推送作为子应用挂到 /desire，进程内共享 Ombre 记忆。
+        # 默认关闭，不影响 Ombre 现有功能。集成点说明见 src/desire/DESIRE_INTEGRATION.md。
+        _desire_enabled = os.environ.get("DESIRE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+        if _desire_enabled:
+            try:
+                from desire import desire_app as _desire_app, start_notify_loop as _desire_start_loop
+                _app.mount("/desire", _desire_app)
+                _parent_lifespan = _app.router.lifespan_context
+
+                @asynccontextmanager
+                async def _desire_lifespan(_lifespan_app):
+                    async with _parent_lifespan(_lifespan_app):
+                        _desire_start_loop()
+                        yield
+
+                _app.router.lifespan_context = _desire_lifespan
+                logger.info("desire 已启用：子应用挂载于 /desire")
+            except Exception as _desire_exc:
+                logger.warning(f"desire 挂载失败，已跳过：{_desire_exc}")
+
         if transport == "streamable-http":
             logger.info("MCP 单连接器 /mcp：16 个工具统一对外暴露")
         logger.info("CORS middleware enabled for remote transport / 已启用 CORS 中间件")
