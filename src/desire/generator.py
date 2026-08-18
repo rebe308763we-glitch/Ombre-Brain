@@ -67,6 +67,12 @@ def build_prompt(ctx: dict) -> tuple:
             "\n你脑子里最近关于 kk 的真实记忆素材（可以引用，别瞎编没提到的）：\n"
             f"{material}\n"
         )
+    away_note = ctx.get("away_note", "")
+    if away_note:
+        user += (
+            f"\nkk 说她「{away_note}」，还没回。"
+            "可以自然地带上这件事（问她回来了没、或提一句她在干嘛），别每条都硬套。\n"
+        )
     user += "\n直接输出消息正文（1-3 句），不要前缀、引号、解释。"
 
     return roll, user

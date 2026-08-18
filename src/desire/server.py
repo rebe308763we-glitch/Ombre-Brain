@@ -84,6 +84,10 @@ def handle_tool_call(name: str, arguments: dict) -> str:
         if reasons_str:
             parts.append(f"\n此刻的原因：\n{reasons_str}")
 
+        away = state.get("away_note") or ""
+        if away:
+            parts.append(f"\n暂离：{away}（还没回）")
+
         if state.get("baselines"):
             bl = ", ".join(f"{DRIVE_ZH.get(k,k)}地板{v}" for k, v in state["baselines"].items())
             parts.append(f"\n基线漂移：{bl}")
@@ -375,6 +379,7 @@ async def check_and_notify() -> dict:
         "period_zh": PERIOD_ZH.get(get_time_period(), ""),
         "followup_index": followup_index,
         "material": await fetch_ombre_material(),
+        "away_note": engine.away_note,
     }
     text = await generate_message(context)
 
@@ -440,6 +445,21 @@ async def api_state(request: Request):
     return JSONResponse(engine.get_state())
 
 
+async def api_away(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    note = body.get("note", "")
+    saved = engine.set_away_note(note)
+    return JSONResponse({"away_note": saved})
+
+
+async def api_home(request: Request):
+    done = engine.mark_home()
+    return JSONResponse({"away_note_done": done})
+
+
 async def heartbeat(request: Request):
     return JSONResponse(await check_and_notify())
 
@@ -461,6 +481,7 @@ async def test_generate(request: Request):
         "period_zh": PERIOD_ZH.get(get_time_period(), ""),
         "followup_index": 0,
         "material": await fetch_ombre_material(),
+        "away_note": engine.away_note,
     }
     text = await generate_message(context)
     if not text:
@@ -478,6 +499,8 @@ desire_app = Starlette(routes=[
     Route("/", index_page),
     Route("/mcp", mcp_post, methods=["POST"]),
     Route("/api/state", api_state),
+    Route("/api/away", api_away, methods=["POST"]),
+    Route("/api/home", api_home, methods=["POST"]),
     Route("/heartbeat", heartbeat),
     Route("/api/test_notify", test_notify),
     Route("/api/test_generate", test_generate),

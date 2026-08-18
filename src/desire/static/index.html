@@ -29,6 +29,23 @@ body{
   border:1px solid rgba(180,200,220,.15);
 }
 
+/* away 暂离 */
+.away-title{font-size:.72rem;color:#9ab0c5;font-weight:600;margin-bottom:10px;letter-spacing:1px}
+.away-row{display:flex;gap:8px;align-items:center}
+.away-row input{
+  flex:1;border:1px solid rgba(180,200,220,.35);border-radius:12px;
+  padding:9px 12px;font-size:.85rem;color:#3a4a5c;background:rgba(255,255,255,.7);
+  outline:none;
+}
+.away-row input:focus{border-color:rgba(120,180,160,.6)}
+.away-btn{
+  border:none;border-radius:12px;padding:9px 12px;font-size:.8rem;font-weight:500;
+  cursor:pointer;background:rgba(120,180,160,.15);color:#5a9a80;
+}
+.away-btn.home{background:rgba(160,140,190,.12);color:#8a7ab0}
+.away-active{font-size:.82rem;color:#c89a6a;margin-top:10px}
+.away-done{font-size:.8rem;color:#9ab0c5;margin-top:10px;opacity:.45}
+
 /* intent */
 .intent-card{
   text-align:center;padding:22px 18px;
@@ -139,6 +156,16 @@ body{
 </div>
 <div class="update-time" id="updateTime"></div>
 
+<div class="card" id="awayCard">
+  <div class="away-title">暂离</div>
+  <div class="away-row">
+    <input type="text" id="awayInput" placeholder="去哪了，暂时回不来..." />
+    <button class="away-btn" onclick="setAway()">暂离</button>
+    <button class="away-btn home" onclick="markHome()">已回家</button>
+  </div>
+  <div id="awayStatus"></div>
+</div>
+
 <div class="card intent-card" id="intent"><div class="intent-text">加载中...</div></div>
 <div class="card feel-card" id="feel"></div>
 <div class="card trio-card" id="trio"></div>
@@ -225,6 +252,16 @@ async function load(){
 
     const feel = calcFeel(d.drives);
     const reasons = d.drive_reasons || {};
+
+    // away 暂离
+    const awayEl=document.getElementById('awayStatus');
+    if(d.away_note){
+      awayEl.innerHTML=`<div class="away-active">暂离中：${d.away_note}</div>`;
+    }else if(d.away_note_done){
+      awayEl.innerHTML=`<div class="away-done">上次去了：${d.away_note_done}</div>`;
+    }else{
+      awayEl.innerHTML='';
+    }
 
     // intent
     document.getElementById('intent').innerHTML=
@@ -333,6 +370,20 @@ async function load(){
   }catch(e){
     document.getElementById('intent').innerHTML='<div class="intent-text">连接中...</div>';
   }
+}
+
+async function setAway(){
+  const input=document.getElementById('awayInput');
+  const note=input.value.trim();
+  if(!note) return;
+  await fetch('/desire/api/away',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note})});
+  input.value='';
+  load();
+}
+
+async function markHome(){
+  await fetch('/desire/api/home',{method:'POST'});
+  load();
 }
 
 function refresh(){

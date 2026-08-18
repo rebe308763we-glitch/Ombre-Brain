@@ -152,6 +152,9 @@ class DesireEngine:
         self.sent_history: list[str] = []        # 近期发过的正文，去重用
         self.notify_day: str = ""                # 每日上限记账
         self.notify_day_count: int = 0
+        # 暂离状态：away_note=当前"去哪了"（推送引用），away_note_done=上次已完成（网页变淡显示）
+        self.away_note: str = ""
+        self.away_note_done: str = ""
 
         self._load()
 
@@ -233,6 +236,8 @@ class DesireEngine:
             "sent_history": self.sent_history[-40:],
             "notify_day": self.notify_day,
             "notify_day_count": self.notify_day_count,
+            "away_note": self.away_note,
+            "away_note_done": self.away_note_done,
         }
 
     def _deserialize(self, d: dict):
@@ -248,6 +253,8 @@ class DesireEngine:
         self.sent_history = d.get("sent_history", [])[-40:]
         self.notify_day = d.get("notify_day", "")
         self.notify_day_count = d.get("notify_day_count", 0)
+        self.away_note = d.get("away_note", "")
+        self.away_note_done = d.get("away_note_done", "")
 
     def _load(self):
         f = self.data_path / "desire_state.json"
@@ -482,6 +489,21 @@ class DesireEngine:
 
         return reasons
 
+    # ── 暂离状态（kk 填的去处，推送引用；已完成变淡保留）──
+
+    def set_away_note(self, note: str) -> str:
+        note = (note or "").strip()[:50]
+        self.away_note = note
+        self.away_note_done = ""  # 新去处替换掉旧的变淡痕迹
+        self._save()
+        return self.away_note
+
+    def mark_home(self) -> str:
+        self.away_note_done = self.away_note  # 已完成，变淡保留
+        self.away_note = ""
+        self._save()
+        return self.away_note_done
+
     # ── 状态 ──
 
     def get_state(self) -> dict:
@@ -498,6 +520,8 @@ class DesireEngine:
             "refractory": {k: round((v - now) / 60, 1) for k, v in self.refractory.items()
                            if v > now},
             "intent": intent,
+            "away_note": self.away_note,
+            "away_note_done": self.away_note_done,
             "thoughts": {
                 "total": len(self.thoughts),
                 "fixations": [{"text": t.text, "drive": DRIVE_ZH.get(t.drive, t.drive),
