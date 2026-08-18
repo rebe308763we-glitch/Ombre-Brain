@@ -17,7 +17,7 @@ from pathlib import Path
 import httpx
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, Response, FileResponse
 from starlette.routing import Route
 
 from .engine import DesireEngine, DRIVE_KEYS, DRIVE_ZH, EVENT_EFFECTS
@@ -463,7 +463,12 @@ async def test_generate(request: Request):
     return JSONResponse({"message": text, "ntfy": ntfy_ok, "tg": tg_ok})
 
 
+async def index_page(request: Request):
+    return FileResponse(BASE_DIR / "static" / "index.html")
+
+
 desire_app = Starlette(routes=[
+    Route("/", index_page),
     Route("/mcp", mcp_post, methods=["POST"]),
     Route("/api/state", api_state),
     Route("/heartbeat", heartbeat),
