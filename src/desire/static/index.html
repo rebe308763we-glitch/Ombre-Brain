@@ -284,7 +284,7 @@ async function load(){
       const blPct=Math.round(bl*100);
       const showBl=d.baselines&&d.baselines[k]&&d.baselines[k]>(BL_HOME[k]||0.3);
       const flavor=getFlavor(k,v);
-      const reason=reasons[m.zh]||'';
+      const reason=reasons[k]||'';
       h+=`<div class="drive-item"><div class="drive-row">
         <span class="drive-icon">${m.icon}</span><span class="drive-name">${m.zh}</span>
         <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${m.color}"></div>

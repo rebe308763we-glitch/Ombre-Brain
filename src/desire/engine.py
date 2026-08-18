@@ -492,7 +492,7 @@ class DesireEngine:
         return {
             "drives": {k: round(v, 3) for k, v in self.drives.items()},
             "drives_zh": {DRIVE_ZH.get(k, k): round(v, 3) for k, v in self.drives.items()},
-            "drive_reasons": {DRIVE_ZH.get(k, k): v for k, v in reasons.items()},
+            "drive_reasons": reasons,
             "baselines": {k: round(v, 3) for k, v in self.baselines.items()
                           if v != BASELINE_HOME.get(k)},
             "refractory": {k: round((v - now) / 60, 1) for k, v in self.refractory.items()
