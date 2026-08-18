@@ -454,18 +454,19 @@ class DesireEngine:
             "creative": {"curiosity": "刚做了有意思的东西"},
         }
 
-        # 从最近3个事件中找原因
+        # 从最近3个事件中找原因；事件带 detail（Ash 自定义写）时优先用 detail 当小字
         for e in reversed(self.events_log[-3:]):
             etype = e.get("type", "")
             if etype in event_drive_map:
+                detail = (e.get("detail") or "").strip()
                 for drv, reason in event_drive_map[etype].items():
                     if drv not in reasons:
-                        reasons[drv] = reason
+                        reasons[drv] = detail[:30] if detail else reason
 
         # 从念头池补充
         for t in self.thoughts:
             if t.drive not in reasons and t.strength > 0.3:
-                reasons[t.drive] = t.text[:20]
+                reasons[t.drive] = t.text[:30]
 
         # 数值兜底
         for k, v in self.drives.items():

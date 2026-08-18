@@ -44,7 +44,7 @@ MCP_TOOLS = [
             "type": "object",
             "properties": {
                 "event_type": {"type": "string", "description": f"事件类型：{EVENT_LIST}"},
-                "detail": {"type": "string", "description": "细节（可选）", "default": ""},
+                "detail": {"type": "string", "description": "细节（可选，写一句自己的话会显示成驱动条下的小字原因，最多30字）", "default": ""},
             },
             "required": ["event_type"],
         },
