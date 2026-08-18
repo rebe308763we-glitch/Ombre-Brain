@@ -35,6 +35,19 @@ services:
         value: /opt/render/project/src/buckets
       - key: OMBRE_CONFIG_PATH
         value: /opt/render/project/src/buckets/config.yaml
+      # ── desire 编入（欲望引擎 + 主动推送）──
+      - key: DESIRE_ENABLED
+        value: "true"
+      - key: DESIRE_DATA_DIR
+        value: /opt/render/project/src/buckets/desire
+      - key: SILICONFLOW_API_KEY
+        sync: false          # 生成层 key（从旧 desire-mcp 复制）
+      - key: TG_BOT_TOKEN
+        sync: false          # Telegram 推送 + pinned 备份
+      - key: TG_CHAT_ID
+        sync: false
+      - key: NTFY_TOPIC
+        sync: false          # ntfy 推送主题
     disk:
       name: ombre-buckets
       mountPath: /opt/render/project/src/buckets
