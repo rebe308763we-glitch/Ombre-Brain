@@ -77,6 +77,13 @@ def handle_tool_call(name: str, arguments: dict) -> str:
         parts = [f"八维驱动条:\n{drives_str}"]
         parts.append(f"\n此刻最想：{intent['intent']}（{intent['reason']}，召唤力{intent['score']:.2f}）")
 
+        reasons = state.get("drive_reasons") or {}
+        reasons_str = "\n".join(
+            f"  {DRIVE_ZH.get(k, k)}：{v}" for k, v in reasons.items() if v
+        )
+        if reasons_str:
+            parts.append(f"\n此刻的原因：\n{reasons_str}")
+
         if state.get("baselines"):
             bl = ", ".join(f"{DRIVE_ZH.get(k,k)}地板{v}" for k, v in state["baselines"].items())
             parts.append(f"\n基线漂移：{bl}")
