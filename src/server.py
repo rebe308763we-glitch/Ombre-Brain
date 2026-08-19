@@ -1257,7 +1257,11 @@ if __name__ == "__main__":
         _desire_enabled = os.environ.get("DESIRE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
         if _desire_enabled:
             try:
-                from desire import desire_app as _desire_app, start_notify_loop as _desire_start_loop
+                from desire import (
+                    desire_app as _desire_app,
+                    start_notify_loop as _desire_start_loop,
+                    start_telegram_loop as _desire_start_tg_loop,
+                )
                 _app.mount("/desire", _desire_app)
                 _parent_lifespan = _app.router.lifespan_context
 
@@ -1265,6 +1269,7 @@ if __name__ == "__main__":
                 async def _desire_lifespan(_lifespan_app):
                     async with _parent_lifespan(_lifespan_app):
                         _desire_start_loop()
+                        _desire_start_tg_loop()
                         yield
 
                 _app.router.lifespan_context = _desire_lifespan

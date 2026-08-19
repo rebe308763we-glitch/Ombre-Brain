@@ -4,6 +4,6 @@
   1. `_app.mount("/desire", desire_app)` 挂子应用
   2. lifespan 里调 `start_notify_loop()` 启动推送循环
 """
-from .server import desire_app, start_notify_loop
+from .server import desire_app, start_notify_loop, start_telegram_loop
 
-__all__ = ["desire_app", "start_notify_loop"]
+__all__ = ["desire_app", "start_notify_loop", "start_telegram_loop"]

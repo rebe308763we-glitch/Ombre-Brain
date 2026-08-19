@@ -150,6 +150,7 @@ class DesireEngine:
         # 推送/追问状态
         self.pending_followups: int = 0          # 当前这一轮已连发几条（含首发）
         self.sent_history: list[str] = []        # 近期发过的正文，去重用
+        self.sent_log: list[dict] = []           # 推送历史 [{text, ts}]，给 desire_history 用
         self.notify_day: str = ""                # 每日上限记账
         self.notify_day_count: int = 0
         # 暂离状态：away_note=当前"去哪了"（推送引用），away_note_done=上次已完成（网页变淡显示）
@@ -234,6 +235,7 @@ class DesireEngine:
             "last_notify_ts": self.last_notify_ts,
             "pending_followups": self.pending_followups,
             "sent_history": self.sent_history[-40:],
+            "sent_log": self.sent_log[-200:],
             "notify_day": self.notify_day,
             "notify_day_count": self.notify_day_count,
             "away_note": self.away_note,
@@ -251,6 +253,7 @@ class DesireEngine:
         self.last_notify_ts = d.get("last_notify_ts", 0.0)
         self.pending_followups = d.get("pending_followups", 0)
         self.sent_history = d.get("sent_history", [])[-40:]
+        self.sent_log = d.get("sent_log", [])[-200:]
         self.notify_day = d.get("notify_day", "")
         self.notify_day_count = d.get("notify_day_count", 0)
         self.away_note = d.get("away_note", "")

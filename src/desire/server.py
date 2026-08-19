@@ -62,6 +62,11 @@ MCP_TOOLS = [
             "required": ["text", "drive"],
         },
     },
+    {
+        "name": "desire_history",
+        "description": "查看最近主动推送历史（只含今天和昨天，带日期时间），以及本轮追问进度和 kk 最近一次回复时间。",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -131,6 +136,31 @@ def handle_tool_call(name: str, arguments: dict) -> str:
         strength = arguments.get("strength", 0.5)
         t = engine.feed_thought(text, drive, strength)
         return f"念头入池：「{text}」({t['kind']}, 强度{t['strength']:.2f})"
+
+    elif name == "desire_history":
+        tz = timezone(timedelta(hours=8))
+        now_dt = datetime.now(tz)
+        today = now_dt.date()
+        yesterday = today - timedelta(days=1)
+
+        lines = []
+        for e in reversed(engine.sent_log):
+            dt = datetime.fromtimestamp(e.get("ts", 0), tz)
+            if dt.date() in (today, yesterday):
+                lines.append(f"[{dt.strftime('%Y-%m-%d %H:%M')}] {e.get('text', '')}")
+        if not lines:
+            lines = ["（今天和昨天还没发过）"]
+
+        reply_ts = last_kk_reply_ts()
+        reply_str = (
+            datetime.fromtimestamp(reply_ts, tz).strftime("%Y-%m-%d %H:%M")
+            if reply_ts else "（还没回）"
+        )
+        header = (
+            f"本轮已发 {engine.pending_followups} 条（上限 {MAX_FOLLOWUPS}）\n"
+            f"kk 上次回复：{reply_str}"
+        )
+        return header + "\n── 最近推送（今天+昨天）──\n" + "\n".join(lines)
 
     return f"未知工具: {name}"
 
@@ -402,6 +432,8 @@ async def check_and_notify() -> dict:
         engine.pending_followups += 1
         engine.sent_history.append(text)
         engine.sent_history = engine.sent_history[-40:]
+        engine.sent_log.append({"text": text, "ts": now})
+        engine.sent_log = engine.sent_log[-200:]
         engine.notify_day_count += 1
         engine.drives[top_drive] *= 0.90
         engine._save()
@@ -426,6 +458,77 @@ def start_notify_loop() -> asyncio.Task:
     global _notify_task
     _notify_task = asyncio.create_task(notify_loop())
     return _notify_task
+
+
+# ══════ Telegram 回复监听 ══════
+# 推送是单向的（ntfy/Telegram 只发不收）。要让 kk 在 Telegram 里回 bot 就被识别，
+# 这里轮询 getUpdates：kk 发来的任意文本消息都记成 kk_message 事件，
+# 下一轮 check_and_notify 发现 last_kk_reply_ts > last_notify_ts 即停止追问。
+
+_tg_offset = 0
+
+
+def _tg_offset_file() -> Path:
+    return Path(DATA_DIR) / "desire_tg_offset.txt"
+
+
+def _load_tg_offset():
+    global _tg_offset
+    try:
+        _tg_offset = int(_tg_offset_file().read_text(encoding="utf-8").strip() or "0")
+    except Exception:
+        _tg_offset = 0
+
+
+def _save_tg_offset():
+    try:
+        Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
+        _tg_offset_file().write_text(str(_tg_offset), encoding="utf-8")
+    except Exception:
+        pass
+
+
+async def telegram_reply_loop():
+    """轮询 getUpdates：kk 在 Telegram 回 bot 即视为「她回来了」。"""
+    if not TG_TOKEN or not TG_CHAT_ID:
+        return
+    global _tg_offset
+    _load_tg_offset()
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.post(
+                    f"https://api.telegram.org/bot{TG_TOKEN}/getUpdates",
+                    json={"offset": _tg_offset, "timeout": 25,
+                          "allowed_updates": ["message"]},
+                    timeout=35,
+                )
+            data = r.json() if r.status_code == 200 else {}
+            if data.get("ok"):
+                for upd in data.get("result", []):
+                    _tg_offset = max(_tg_offset, int(upd["update_id"]) + 1)
+                    msg = upd.get("message", {})
+                    if not msg or not msg.get("text"):
+                        continue
+                    if msg.get("from", {}).get("is_bot"):
+                        continue
+                    if str(msg.get("chat", {}).get("id", "")) != str(TG_CHAT_ID):
+                        continue
+                    engine.apply_event("kk_message", detail=msg["text"][:40])
+                _save_tg_offset()
+        except Exception:
+            pass
+        await asyncio.sleep(3)
+
+
+_telegram_task: asyncio.Task = None
+
+
+def start_telegram_loop() -> asyncio.Task:
+    global _telegram_task
+    if _telegram_task is None:
+        _telegram_task = asyncio.create_task(telegram_reply_loop())
+    return _telegram_task
 
 
 # ══════ 路由 ══════
