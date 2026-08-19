@@ -143,11 +143,13 @@ def handle_tool_call(name: str, arguments: dict) -> str:
         today = now_dt.date()
         yesterday = today - timedelta(days=1)
 
+        fu_label = {0: "首发", 1: "追1", 2: "追2"}
         lines = []
         for e in reversed(engine.sent_log):
             dt = datetime.fromtimestamp(e.get("ts", 0), tz)
             if dt.date() in (today, yesterday):
-                lines.append(f"[{dt.strftime('%Y-%m-%d %H:%M')}] {e.get('text', '')}")
+                fu = fu_label.get(e.get("followup", 0), "首发")
+                lines.append(f"[{dt.strftime('%Y-%m-%d %H:%M')}]（{fu}）{e.get('text', '')}")
         if not lines:
             lines = ["（今天和昨天还没发过）"]
 
@@ -371,6 +373,13 @@ async def check_and_notify() -> dict:
         engine._save()
         return {"sent": False, "reason": "kk_active"}
 
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+    if engine.notify_day != today:
+        engine.notify_day = today
+        engine.notify_day_count = 0
+        engine.pending_followups = 0
+        engine._save()
+
     if engine.pending_followups >= MAX_FOLLOWUPS:
         return {"sent": False, "reason": "followup_cap"}
 
@@ -379,11 +388,6 @@ async def check_and_notify() -> dict:
         remaining = int(cooldown - (now - engine.last_notify_ts))
         return {"sent": False, "reason": "cooldown", "remaining_s": remaining}
 
-    today = datetime.now(tz).strftime("%Y-%m-%d")
-    if engine.notify_day != today:
-        engine.notify_day = today
-        engine.notify_day_count = 0
-        engine.pending_followups = 0
     if engine.notify_day_count >= DAILY_NOTIFY_CAP:
         return {"sent": False, "reason": "daily_cap"}
 
@@ -432,7 +436,7 @@ async def check_and_notify() -> dict:
         engine.pending_followups += 1
         engine.sent_history.append(text)
         engine.sent_history = engine.sent_history[-40:]
-        engine.sent_log.append({"text": text, "ts": now})
+        engine.sent_log.append({"text": text, "ts": now, "followup": followup_index})
         engine.sent_log = engine.sent_log[-200:]
         engine.notify_day_count += 1
         engine.drives[top_drive] *= 0.90
